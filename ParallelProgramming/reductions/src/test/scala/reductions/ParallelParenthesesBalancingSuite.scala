@@ -56,4 +56,13 @@ class ParallelParenthesesBalancingSuite extends FunSuite {
     check("(a(fa(afe).)_)",true)
     check("(fjiw(ojf(j))", false)
   }
+
+  test("parBalance2 should work for string of length 2") {
+    def check(input: String, expected: Boolean) =
+      assert(parBalance(input.toArray, 1) == expected,
+        s"parBalance($input) should be $expected")
+
+    check("')('", false)
+    check("()()()()",true)
+  }
 }

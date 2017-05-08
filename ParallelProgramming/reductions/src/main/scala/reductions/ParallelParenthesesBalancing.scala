@@ -1,5 +1,6 @@
 package reductions
 
+import common._
 import org.scalameter._
 
 object ParallelParenthesesBalancingRunner {
@@ -46,7 +47,7 @@ object ParallelParenthesesBalancing {
     // 0 null -1 left 1 right
     def find(ps: List[Char], stack: Int): Boolean = {
       ps match {
-        case Nil => if (stack == 0) true else false
+        case Nil => stack == 0
         case x :: tail => x match {
           case '(' =>
             find(tail, stack + 1)
@@ -71,6 +72,8 @@ object ParallelParenthesesBalancing {
       parenthesesArray.slice(idx, until).sliding(arg1, arg2).toList
     }
 
+    var balanceValue = true
+
     def reduce(from: Int, until: Int): Int = {
       def find(ps: List[Char], stack: Int): Int = {
         ps match {
@@ -82,10 +85,16 @@ object ParallelParenthesesBalancing {
           }
         }
       }
-      traverse(from, until, threshold, threshold).map(v => find(v, 0)).sum
+
+      traverse(from, until, threshold, threshold).map(v => find(v, 0)).reduce((l, r) => {
+        if (l < 0) balanceValue = false
+        val o = parallel(l, r)
+        o._1 + o._2
+      }
+      )
     }
 
-    reduce(0, parenthesesArray.length) == 0
+    (reduce(0, parenthesesArray.length) == 0) && balanceValue
   }
 
   // For those who want more:
