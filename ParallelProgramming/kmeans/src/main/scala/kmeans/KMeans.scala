@@ -1,13 +1,10 @@
 package kmeans
 
+import org.scalameter._
+
 import scala.annotation.tailrec
 import scala.collection._
 import scala.util.Random
-import org.scalameter._
-import common._
-
-import scala.collection.parallel.ParSeq
-import scala.collection.parallel.immutable.ParMap
 
 class KMeans {
 
@@ -48,7 +45,7 @@ class KMeans {
   def classify(points: GenSeq[Point], means: GenSeq[Point]): GenMap[Point, GenSeq[Point]] = {
 
     if(points.nonEmpty) {
-      val indexMeans = means.toIndexedSeq
+      val indexMeans = means.toIndexedSeq.par
       points.toIndexedSeq.par.map(p => (findClosest(p, indexMeans), p)).groupBy(_._1).map(v => (v._1, v._2.map(_._2)))
     }
     else means.par.map(v => (v, Seq())).toMap
@@ -67,16 +64,21 @@ class KMeans {
   }
 
   def update(classified: GenMap[Point, GenSeq[Point]], oldMeans: GenSeq[Point]): GenSeq[Point] = {
-    ???
+    oldMeans.par.map { m =>
+      findAverage(m, classified(m))
+    }.toIndexedSeq
   }
 
   def converged(eta: Double)(oldMeans: GenSeq[Point], newMeans: GenSeq[Point]): Boolean = {
-    ???
+    !(oldMeans zip newMeans).exists { v =>
+      (v._1 squareDistance v._2) > eta
+    }
   }
 
   @tailrec
   final def kMeans(points: GenSeq[Point], means: GenSeq[Point], eta: Double): GenSeq[Point] = {
-    if (???) kMeans(???, ???, ???) else ??? // your implementation need to be tail recursive
+    val newMeans = update(classify(points, means), means)
+    if (!converged(eta)(means, newMeans)) kMeans(points, newMeans, eta) else newMeans // your implementation need to be tail recursive
   }
 }
 
