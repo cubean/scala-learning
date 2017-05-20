@@ -108,6 +108,7 @@ import FloatOps._
     boundaries.maxY = 97
     val sm = new SectorMatrix(boundaries, SECTOR_PRECISION)
     sm += body
+
     val res = sm(2, 3).size == 1 && sm(2, 3).find(_ == body).isDefined
     assert(res, s"Body not found in the right sector")
   }
