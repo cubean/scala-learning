@@ -68,11 +68,11 @@ package object barneshut {
     private val midQuad = Seq((nw.mass, nw.massX, nw.massY), (ne.mass, ne.massX, ne.massY),
       (sw.mass, sw.massX, sw.massY), (se.mass, se.massX, se.massY)).reduce((a, b) =>
       (a._1 + b._1,
-        a._2 + (b._2 - a._2) * (b._1 / (a._1 + b._1)),
-        a._3 + (b._3 - a._3) * (b._1 / (a._1 + b._1))))
+        if (a._1 + b._1 == 0) (b._2 + a._2) / 2 else a._2 + (b._2 - a._2) * (b._1 / (a._1 + b._1)),
+        if (a._1 + b._1 == 0) (b._3 + a._3) / 2 else a._3 + (b._3 - a._3) * (b._1 / (a._1 + b._1))))
 
-    val massX: Float = midQuad._2
-    val massY: Float = midQuad._3
+    val massX: Float = if(mass == 0) centerX else midQuad._2
+    val massY: Float = if(mass == 0) centerY else midQuad._3
     val total: Int = nw.total + ne.total + sw.total + se.total
 
     def insert(b: Body): Fork = {
@@ -174,8 +174,9 @@ package object barneshut {
           // or recursion is needed
           if (quad.size / distance(quad.massX, quad.massY, x, y) < theta)
             addForce(quad.mass, quad.massX, quad.massY)
-          Seq(nw, ne, sw, se).foreach { quad =>
-            addForce(quad.mass, quad.massX, quad.massY)
+          else
+            Seq(nw, ne, sw, se).foreach { quad =>
+              addForce(quad.mass, quad.massX, quad.massY)
           }
 
         }
@@ -201,9 +202,9 @@ package object barneshut {
     for (i <- 0 until matrix.length) matrix(i) = new ConcBuffer
 
     def +=(b: Body): SectorMatrix = {
-      if(sectorSize > 0) {
-        val xValue = if (b.x < boundaries.maxX) (b.x - boundaries.minX) / sectorPrecision else sectorSize - 1
-        val yValue = if (b.y < boundaries.maxY) (b.y - boundaries.minY) / sectorPrecision else sectorSize - 1
+      if(sectorPrecision > 0) {
+        val xValue = if (b.x < boundaries.maxX) (b.x - boundaries.minX) / sectorSize else sectorPrecision - 1
+        val yValue = if (b.y < boundaries.maxY) (b.y - boundaries.minY) / sectorSize else sectorPrecision - 1
 
         matrix(yValue.toInt * sectorPrecision + xValue.toInt) += b
       }

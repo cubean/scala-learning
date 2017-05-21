@@ -1,22 +1,29 @@
 package barneshut
 
-import java.awt._
-import java.awt.event._
-import javax.swing._
-import javax.swing.event._
-import scala.collection.parallel.TaskSupport
-import scala.collection.parallel.Combiner
+import scala.collection.parallel.{Combiner, TaskSupport}
 import scala.collection.parallel.mutable.ParHashSet
-import common._
 
 class Simulator(val taskSupport: TaskSupport, val timeStats: TimeStatistics) {
 
   def updateBoundaries(boundaries: Boundaries, body: Body): Boundaries = {
-    ???
+    if (body.x < boundaries.minX) boundaries.minX = body.x
+    else if (body.x > boundaries.maxX) boundaries.maxX = body.x
+
+
+    if (body.y < boundaries.minY) boundaries.minY = body.y
+    else if (body.y > boundaries.maxY) boundaries.maxY = body.y
+
+    boundaries
   }
 
   def mergeBoundaries(a: Boundaries, b: Boundaries): Boundaries = {
-    ???
+    val newBound = new Boundaries()
+    newBound.minX = a.minX min b.minX
+    newBound.maxX = a.maxX max b.maxX
+    newBound.minY = a.minY min b.minY
+    newBound.maxY = a.maxY max b.maxY
+
+    newBound
   }
 
   def computeBoundaries(bodies: Seq[Body]): Boundaries = timeStats.timed("boundaries") {
@@ -28,7 +35,7 @@ class Simulator(val taskSupport: TaskSupport, val timeStats: TimeStatistics) {
   def computeSectorMatrix(bodies: Seq[Body], boundaries: Boundaries): SectorMatrix = timeStats.timed("matrix") {
     val parBodies = bodies.par
     parBodies.tasksupport = taskSupport
-    ???
+    parBodies.aggregate(new SectorMatrix(boundaries, SECTOR_PRECISION))(_ += _, _ combine _)
   }
 
   def computeQuad(sectorMatrix: SectorMatrix): Quad = timeStats.timed("quad") {
@@ -38,7 +45,7 @@ class Simulator(val taskSupport: TaskSupport, val timeStats: TimeStatistics) {
   def updateBodies(bodies: Seq[Body], quad: Quad): Seq[Body] = timeStats.timed("update") {
     val parBodies = bodies.par
     parBodies.tasksupport = taskSupport
-    ???
+    parBodies.aggregate(Seq[Body]())( _ :+ _.updated(quad), _ ++ _)
   }
 
   def eliminateOutliers(bodies: Seq[Body], sectorMatrix: SectorMatrix, quad: Quad): Seq[Body] = timeStats.timed("eliminate") {
