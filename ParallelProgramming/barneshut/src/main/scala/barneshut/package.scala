@@ -76,13 +76,13 @@ package object barneshut {
     val total: Int = nw.total + ne.total + sw.total + se.total
 
     def insert(b: Body): Fork = {
-      if(b.x <= centerX) {
-        if(b.y <= centerY)
+      if(b.x < centerX) {
+        if(b.y < centerY)
           nw.insert(b)
         else sw.insert(b)
       }
       else {
-        if(b.y <= centerY)
+        if(b.y < centerY)
           ne.insert(b)
         else se.insert(b)
       }
@@ -175,10 +175,7 @@ package object barneshut {
           if (quad.size / distance(quad.massX, quad.massY, x, y) < theta)
             addForce(quad.mass, quad.massX, quad.massY)
           else
-            Seq(nw, ne, sw, se).foreach { quad =>
-              addForce(quad.mass, quad.massX, quad.massY)
-          }
-
+            Seq(nw, ne, sw, se).foreach(traverse)
         }
       }
 

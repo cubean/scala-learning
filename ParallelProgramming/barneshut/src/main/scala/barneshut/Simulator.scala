@@ -7,11 +7,9 @@ class Simulator(val taskSupport: TaskSupport, val timeStats: TimeStatistics) {
 
   def updateBoundaries(boundaries: Boundaries, body: Body): Boundaries = {
     if (body.x < boundaries.minX) boundaries.minX = body.x
-    else if (body.x > boundaries.maxX) boundaries.maxX = body.x
-
-
+    if (body.x > boundaries.maxX) boundaries.maxX = body.x
     if (body.y < boundaries.minY) boundaries.minY = body.y
-    else if (body.y > boundaries.maxY) boundaries.maxY = body.y
+    if (body.y > boundaries.maxY) boundaries.maxY = body.y
 
     boundaries
   }
