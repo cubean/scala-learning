@@ -1,11 +1,10 @@
 package stackoverflow
 
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.RDD
-import annotation.tailrec
-import scala.reflect.ClassTag
+
+import scala.annotation.tailrec
+import scala.collection.immutable
 
 /** A raw stackoverflow posting, either a question or an answer */
 case class Posting(postingType: Int, id: Int, acceptedAnswer: Option[Int], parentId: Option[Int], score: Int, tags: Option[String]) extends Serializable
@@ -25,7 +24,7 @@ object StackOverflow extends StackOverflow {
     val grouped = groupedPostings(raw)
     val scored  = scoredPostings(grouped)
     val vectors = vectorPostings(scored)
-//    assert(vectors.count() == 2121822, "Incorrect number of vectors: " + vectors.count())
+    assert(vectors.count() == 2121822, "Incorrect number of vectors: " + vectors.count())
 
     val means   = kmeans(sampleVectors(vectors), vectors, debug = true)
     val results = clusterResults(means, vectors)
@@ -180,7 +179,18 @@ class StackOverflow extends Serializable {
 
   /** Main kmeans computation */
   @tailrec final def kmeans(means: Array[(Int, Int)], vectors: RDD[(Int, Int)], iter: Int = 1, debug: Boolean = false): Array[(Int, Int)] = {
-    val newMeans = means.clone() // you need to compute newMeans
+//    val newMeans: Array[(Int, Int)] = means.clone() // you need to compute newMeans
+
+    val closest: RDD[(Int, (Int, Int))] = vectors.map(p => (findClosest(p, means), p))
+
+    // key is index of means, value is (lang, score)
+    val closestGrouped: RDD[(Int, Iterable[(Int, Int)])] = closest.groupByKey()
+
+    val intermediate: RDD[(Int, (Int, Int))] = closestGrouped.map(v => (v._1, averageVectors(v._2)))
+
+    val groupedInter: Map[Int, Iterable[(Int, Int)]] = intermediate.collect().groupBy(_._1).map(v => (v._1, v._2.map(_._2).toIterable))
+//    println(s">>> ${means.length}, ${groupedInter.size}, ${groupedInter.keys}")
+    val newMeans: Array[(Int, Int)] = means.indices.map(v => if(groupedInter.contains(v)) averageVectors(groupedInter(v)) else means(v)).toArray
 
     // TODO: Fill in the newMeans array
     val distance = euclideanDistance(means, newMeans)
@@ -215,7 +225,7 @@ class StackOverflow extends Serializable {
   //
 
   /** Decide whether the kmeans clustering converged */
-  def converged(distance: Double) =
+  def converged(distance: Double): Boolean =
     distance < kmeansEta
 
 
@@ -280,11 +290,29 @@ class StackOverflow extends Serializable {
     val closest = vectors.map(p => (findClosest(p, means), p))
     val closestGrouped = closest.groupByKey()
 
-    val median = closestGrouped.mapValues { vs =>
-      val langLabel: String   = ??? // most common language in the cluster
-      val langPercent: Double = ??? // percent of the questions in the most common language
-      val clusterSize: Int    = ???
-      val medianScore: Int    = ???
+    val median: RDD[(Int, (String, Double, Int, Int))] = closestGrouped.mapValues { vs =>
+
+      val questionGroup: Map[Int, Iterable[(Int, Int)]] = vs.groupBy(_._1)
+      val mostCommonLang: (Int, Iterable[(Int, Int)]) = questionGroup.maxBy(_._2.size)
+
+      val langLabel: String   = langs(mostCommonLang._1 / langSpread) // most common language in the cluster
+      val langPercent: Double = mostCommonLang._2.size.toDouble / vs.size // percent of the questions in the most common language
+
+      // the size of the cluster (the number of questions it contains);
+      val clusterSize: Int    = questionGroup.size
+
+
+      val orderedScores = questionGroup.map(_._2.maxBy(_._2)._2).toSeq.sorted.reverse
+      val sizeOrderedScores = orderedScores.size
+
+      val medianIndex =
+        if (sizeOrderedScores < 2) 0
+        else if (sizeOrderedScores % 2 == 0)
+          sizeOrderedScores / 2 - 1
+        else sizeOrderedScores / 2
+
+      // the median of the highest answer scores
+      val medianScore: Int    = orderedScores(medianIndex)
 
       (langLabel, langPercent, clusterSize, medianScore)
     }
