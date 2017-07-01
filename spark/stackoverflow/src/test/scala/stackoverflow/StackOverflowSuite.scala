@@ -35,4 +35,23 @@ class StackOverflowSuite extends FunSuite with BeforeAndAfterAll {
   }
 
 
+  test("cluster") {
+
+    val vectors = StackOverflow.sc.parallelize(List( (450000, 39),(500000, 31),(150000,1),(150000,10),(500000, 55),(150000,2) ,(150000,22)))
+
+    val means = Array((500000, 13),(150000,10))
+
+    var results: Array[(String, Double, Int, Int)] = testObject.clusterResults(means, vectors)
+
+    testObject.printResults(results)
+
+    println(results(0))
+
+    println(results(1))
+
+    assert(results.contains("Python", 100.0, 4, 6)) //I like python~!
+
+    assert(results.contains("Scala", 66.66666666666667, 3,39))
+
+  }
 }
