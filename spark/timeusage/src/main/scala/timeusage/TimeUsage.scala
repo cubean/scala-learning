@@ -95,7 +95,7 @@ object TimeUsage {
     val otherColumns =
       Seq("t02", "t04", "t06", "t07", "t08", "t09", "t10", "t12", "t13", "t14", "t15", "t16", "t18")
         .flatMap(s => columnNames.filter(_.startsWith(s))).toList
-        .filterNot(n => n.startsWith(Seq("t1801", "t1803")))
+        .filterNot(n => n.startsWith("t1801") || n.startsWith("t1803") || n.startsWith("t1805"))
         .map(col)
 
     (primaryNeedsColumns, workColumns, otherColumns)
@@ -209,8 +209,8 @@ object TimeUsage {
     * @param viewName Name of the SQL view to use
     */
   def timeUsageGroupedSqlQuery(viewName: String): String =
-    """ select working, sex, age, round(avg(primaryNeeds), 1), round(avg(work), 1), round(avg(other), 1)
-      | from viewName
+    s""" select working, sex, age, round(avg(primaryNeeds), 1), round(avg(work), 1), round(avg(other), 1)
+      | from $viewName
       | group by working, sex, age
       | order by working, sex, age
     """.stripMargin
