@@ -165,7 +165,7 @@ object TimeUsage {
       .select(workingStatusProjection as "working", sexProjection as "sex",
         ageProjection as "age", primaryNeedsProjection as "primaryNeeds",
         workProjection as "work", otherProjection as "other")
-      .where($"working" === "working") // Discard people who are not in labor force
+      .where($"telfs" <= 4) // Discard people who are not in labor force
   }
 
   /** @return the average daily time (in hours) spent in primary needs, working or leisure, grouped by the different
@@ -212,7 +212,6 @@ object TimeUsage {
     """ select working, sex, age, round(avg(primaryNeeds), 1), round(avg(work), 1), round(avg(other), 1)
       | from viewName
       | group by working, sex, age
-      | average( primaryNeeds, work, other)
       | order by working, sex, age
     """.stripMargin
 
