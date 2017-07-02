@@ -152,11 +152,11 @@ object TimeUsage {
       else "elder"
     val ageProjection: Column = udf(getAgeValue).apply(col("teage"))
 
-    val primaryNeedsProjection: Column = primaryNeedsColumns.sum / 60
+    val primaryNeedsProjection: Column = primaryNeedsColumns.reduce(_ + _) / 60
 
-    val workProjection: Column = workColumns.sum / 60
+    val workProjection: Column = workColumns.reduce(_ + _) / 60
 
-    val otherProjection: Column = otherColumns.sum / 60
+    val otherProjection: Column = otherColumns.reduce(_ + _) / 60
 
     df
       .withColumn("working", workingStatusProjection)
