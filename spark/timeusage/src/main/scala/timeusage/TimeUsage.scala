@@ -29,8 +29,8 @@ object TimeUsage {
   def timeUsageByLifePeriod(): Unit = {
     val (columns, initDf) = read("/timeusage/atussum.csv")
     val (primaryNeedsColumns, workColumns, otherColumns) = classifiedColumns(columns)
-    val summaryDf = timeUsageSummary(primaryNeedsColumns, workColumns, otherColumns, initDf)
-    val finalDf = timeUsageGrouped(summaryDf)
+    val summaryDf = timeUsageSummary(primaryNeedsColumns, workColumns, otherColumns, initDf).cache()
+    val finalDf = timeUsageGrouped(summaryDf).cache()
     finalDf.show()
   }
 
@@ -49,7 +49,7 @@ object TimeUsage {
         .map(row)
 
     val dataFrame =
-      spark.createDataFrame(data, schema)
+      spark.createDataFrame(data, schema).cache()
 
     (headerColumns, dataFrame)
   }
@@ -89,9 +89,14 @@ object TimeUsage {
     *    “t10”, “t12”, “t13”, “t14”, “t15”, “t16” and “t18” (those which are not part of the previous groups only).
     */
   def classifiedColumns(columnNames: List[String]): (List[Column], List[Column], List[Column]) = {
-    (List($"t01",$"t03", $"t11", $"t1801", $"t1803"),
-      List($"t05", $"t1805"),
-      List($"t02", $"t04", $"t06", $"t07", $"t08", $"t09",$"t10", $"t12", $"t13", $"t14", $"t15", $"t16", $"t18"))
+    val primaryNeedsColumns = columnNames.filter(n => n.startsWith(Seq("t01", "t03", "t11", "t1801", "t1803"))).map(col)
+    val workColumns = columnNames.filter(n => n.startsWith(Seq("t05", "t1805"))).map(col)
+    val otherColumns = columnNames.filter(n => n.startsWith(
+      Seq("t02", "t04", "t06", "t07", "t08", "t09", "t10", "t12", "t13", "t14", "t15", "t16", "t18")))
+      .filterNot(n => n.startsWith(Seq("t1801", "t1803")))
+      .map(col)
+
+    (primaryNeedsColumns, workColumns, otherColumns)
   }
 
   /** @return a projection of the initial DataFrame such that all columns containing hours spent on primary needs
@@ -125,19 +130,39 @@ object TimeUsage {
     * Note that the initial DataFrame contains time in ''minutes''. You have to convert it into ''hours''.
     */
   def timeUsageSummary(
-    primaryNeedsColumns: List[Column],
-    workColumns: List[Column],
-    otherColumns: List[Column],
-    df: DataFrame
-  ): DataFrame = {
-    val workingStatusProjection: Column = $"telfs"
-    val sexProjection: Column = $"tesex"
-    val ageProjection: Column = $"teage"
+                        primaryNeedsColumns: List[Column],
+                        workColumns: List[Column],
+                        otherColumns: List[Column],
+                        df: DataFrame
+                      ): DataFrame = {
 
-    val primaryNeedsProjection: Column = primaryNeedsColumns.sum /  60
-    val workProjection: Column = workColumns.sum /  60
-    val otherProjection: Column = otherColumns.sum /  60
+    def getWorkingValue: (Double => String) = v =>
+      if (v < 3 && v >= 1) "working" else "not working"
+    val workingStatusProjection: Column = udf(getWorkingValue).apply(col("telfs"))
+
+    def getSexValue: (Double => String) = v =>
+      if(v == 1) "male" else "female"
+    val sexProjection: Column = udf(getSexValue).apply(col("tesex"))
+
+    def getAgeValue: (Double => String) = v =>
+      if(v >= 15 && v <= 22) "young"
+      else if(v >= 23 && v <= 55) "active"
+      else "elder"
+    val ageProjection: Column = udf(getAgeValue).apply(col("teage"))
+
+    val primaryNeedsProjection: Column = primaryNeedsColumns.sum / 60
+
+    val workProjection: Column = workColumns.sum / 60
+
+    val otherProjection: Column = otherColumns.sum / 60
+
     df
+      .withColumn("working", workingStatusProjection)
+      .withColumn("sex", sexProjection)
+      .withColumn("age", ageProjection)
+      .withColumn("primaryNeeds", primaryNeedsProjection)
+      .withColumn("work", workProjection)
+      .withColumn("other", otherProjection)
       .select(workingStatusProjection, sexProjection, ageProjection, primaryNeedsProjection, workProjection, otherProjection)
       .where($"telfs" < 3 || $"telfs" >= 1) // Discard people who are not in labor force
   }
@@ -160,7 +185,13 @@ object TimeUsage {
     * Finally, the resulting DataFrame should be sorted by working status, sex and age.
     */
   def timeUsageGrouped(summed: DataFrame): DataFrame = {
-    summed.groupBy($"workingStatusProjection").sum().sort()
+    summed.groupBy($"working", $"sex", $"age")
+      .avg("primaryNeeds", "work", "other")
+      .sort("working", "sex", "age")
+      .select($"working", $"sex", $"age",
+        round($"primaryNeeds", 1),
+        round($"work", 1),
+        round($"other", 1))
   }
 
   /**
@@ -201,7 +232,6 @@ object TimeUsage {
     * Hint: you should use the `groupByKey` and `typed.avg` methods.
     */
   def timeUsageGroupedTyped(summed: Dataset[TimeUsageRow]): Dataset[TimeUsageRow] = {
-    import org.apache.spark.sql.expressions.scalalang.typed
     ???
   }
 }
