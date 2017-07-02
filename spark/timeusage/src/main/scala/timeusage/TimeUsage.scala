@@ -89,12 +89,14 @@ object TimeUsage {
     *    “t10”, “t12”, “t13”, “t14”, “t15”, “t16” and “t18” (those which are not part of the previous groups only).
     */
   def classifiedColumns(columnNames: List[String]): (List[Column], List[Column], List[Column]) = {
-    val primaryNeedsColumns = columnNames.filter(n => n.startsWith(Seq("t01", "t03", "t11", "t1801", "t1803"))).map(col)
-    val workColumns = columnNames.filter(n => n.startsWith(Seq("t05", "t1805"))).map(col)
-    val otherColumns = columnNames.filter(n => n.startsWith(
-      Seq("t02", "t04", "t06", "t07", "t08", "t09", "t10", "t12", "t13", "t14", "t15", "t16", "t18")))
-      .filterNot(n => n.startsWith(Seq("t1801", "t1803")))
-      .map(col)
+    val primaryNeedsColumns = columnNames.filter(n => n.startsWith("t01") || n.startsWith("t03")
+      || n.startsWith("t11") || n.startsWith("t1801") || n.startsWith("t1803")).map(col)
+    val workColumns = columnNames.filter(n => n.startsWith("t05") || n.startsWith("t1805")).map(col)
+    val otherColumns =
+      Seq("t02", "t04", "t06", "t07", "t08", "t09", "t10", "t12", "t13", "t14", "t15", "t16", "t18")
+        .flatMap(s => columnNames.filter(_.startsWith(s))).toList
+        .filterNot(n => n.startsWith(Seq("t1801", "t1803")))
+        .map(col)
 
     (primaryNeedsColumns, workColumns, otherColumns)
   }
