@@ -140,16 +140,19 @@ object TimeUsage {
 
     def getWorkingValue: (Double => String) = v =>
       if (v < 3 && v >= 1) "working" else "not working"
+
     val workingStatusProjection: Column = udf(getWorkingValue).apply(col("telfs"))
 
     def getSexValue: (Double => String) = v =>
-      if(v == 1) "male" else "female"
+      if (v == 1) "male" else "female"
+
     val sexProjection: Column = udf(getSexValue).apply(col("tesex"))
 
     def getAgeValue: (Double => String) = v =>
-      if(v >= 15 && v <= 22) "young"
-      else if(v >= 23 && v <= 55) "active"
+      if (v >= 15 && v <= 22) "young"
+      else if (v >= 23 && v <= 55) "active"
       else "elder"
+
     val ageProjection: Column = udf(getAgeValue).apply(col("teage"))
 
     val primaryNeedsProjection: Column = primaryNeedsColumns.reduce(_ + _) / 60
@@ -159,14 +162,10 @@ object TimeUsage {
     val otherProjection: Column = otherColumns.reduce(_ + _) / 60
 
     df
-      .withColumn("working", workingStatusProjection)
-      .withColumn("sex", sexProjection)
-      .withColumn("age", ageProjection)
-      .withColumn("primaryNeeds", primaryNeedsProjection)
-      .withColumn("work", workProjection)
-      .withColumn("other", otherProjection)
-      .select(workingStatusProjection, sexProjection, ageProjection, primaryNeedsProjection, workProjection, otherProjection)
-      .where($"telfs" < 3 || $"telfs" >= 1) // Discard people who are not in labor force
+      .select(workingStatusProjection as "working", sexProjection as "sex",
+        ageProjection as "age", primaryNeedsProjection as "primaryNeeds",
+        workProjection as "work", otherProjection as "other")
+      .where($"working" === "working") // Discard people who are not in labor force
   }
 
   /** @return the average daily time (in hours) spent in primary needs, working or leisure, grouped by the different
@@ -191,9 +190,9 @@ object TimeUsage {
       .avg("primaryNeeds", "work", "other")
       .sort("working", "sex", "age")
       .select($"working", $"sex", $"age",
-        round($"primaryNeeds", 1),
-        round($"work", 1),
-        round($"other", 1))
+        round($"avg(primaryNeeds)", 1),
+        round($"avg(work)", 1),
+        round($"avg(other)", 1))
   }
 
   /**
@@ -210,7 +209,12 @@ object TimeUsage {
     * @param viewName Name of the SQL view to use
     */
   def timeUsageGroupedSqlQuery(viewName: String): String =
-    ???
+    """ select working, sex, age, round(avg(primaryNeeds), 1), round(avg(work), 1), round(avg(other), 1)
+      | from viewName
+      | group by working, sex, age
+      | average( primaryNeeds, work, other)
+      | order by working, sex, age
+    """.stripMargin
 
   /**
     * @return A `Dataset[TimeUsageRow]` from the “untyped” `DataFrame`
