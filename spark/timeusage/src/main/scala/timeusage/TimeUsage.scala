@@ -3,6 +3,7 @@ package timeusage
 import java.nio.file.Paths
 
 import org.apache.spark.sql._
+import org.apache.spark.sql.expressions.scalalang.typed
 import org.apache.spark.sql.types._
 
 /** Main class */
@@ -63,8 +64,8 @@ object TimeUsage {
     * @param columnNames Column names of the DataFrame
     */
   def dfSchema(columnNames: List[String]): StructType =
-     StructType(StructField(columnNames.head, StringType) ::
-       columnNames.tail.map(t => StructField(t, DoubleType)))
+     StructType(StructField(columnNames.head, StringType, nullable = false) ::
+       columnNames.tail.map(t => StructField(t, DoubleType, nullable = false)))
 
 
   /** @return An RDD Row compatible with the schema produced by `dfSchema`
@@ -190,9 +191,10 @@ object TimeUsage {
       .avg("primaryNeeds", "work", "other")
       .sort("working", "sex", "age")
       .select($"working", $"sex", $"age",
-        round($"avg(primaryNeeds)", 1),
-        round($"avg(work)", 1),
-        round($"avg(other)", 1))
+        round($"avg(primaryNeeds)", 1) as "primaryNeeds",
+        round($"avg(work)", 1) as "work",
+        round($"avg(other)", 1) as "other"
+      )
   }
 
   /**
@@ -223,7 +225,16 @@ object TimeUsage {
     * cast them at the same time.
     */
   def timeUsageSummaryTyped(timeUsageSummaryDf: DataFrame): Dataset[TimeUsageRow] =
-    ???
+    timeUsageSummaryDf.map(r => TimeUsageRow(
+      r.getAs[String]("working"),
+      r.getAs[String]("sex"),
+      r.getAs[String]("age"),
+
+      r.getAs[Double]("primaryNeeds"),
+      r.getAs[Double]("work"),
+      r.getAs[Double]("other")
+    )
+    )
 
   /**
     * @return Same as `timeUsageGrouped`, but using the typed API when possible
@@ -237,7 +248,21 @@ object TimeUsage {
     * Hint: you should use the `groupByKey` and `typed.avg` methods.
     */
   def timeUsageGroupedTyped(summed: Dataset[TimeUsageRow]): Dataset[TimeUsageRow] = {
-    ???
+
+    def round1(input: Double): Double = Math.round(input * 10) / 10d
+
+    summed.groupByKey(r => (r.working, r.sex, r.age))
+      .agg(
+        typed.avg[TimeUsageRow](_.primaryNeeds),
+        typed.avg[TimeUsageRow](_.work),
+        typed.avg[TimeUsageRow](_.other)
+      )
+      .map(v => TimeUsageRow(
+        v._1._1, v._1._2, v._1._3,
+        round1(v._2), round1(v._3), round1(v._4)
+      )
+      )
+      .orderBy('working, 'sex, 'age)
   }
 }
 
